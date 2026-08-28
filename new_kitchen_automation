@@ -1,0 +1,42 @@
+function onCreateKitchenSubmit(e) {
+  // Prevent cross-trigger execution
+  const sheet = e.source.getActiveSheet();
+  if (sheet.getName() !== "Kitchen_Creation_Responses") return;
+
+  const responseSheetName = "Kitchen_Creation_Responses";
+  const targetSheetName = "Kitchens";
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const responseSheet = ss.getSheetByName(responseSheetName);
+  const targetSheet = ss.getSheetByName(targetSheetName);
+
+  // Extract form values
+  const timestamp = e.values[0];            // Timestamp
+  const kitchenName = e.values[1];          // Kitchen Name
+  const kitchenLocation = e.values[2];      // Kitchen Location
+
+  // Generate Kitchen_ID
+  const lastRow = targetSheet.getLastRow();
+  let newID = "K_001";
+
+  if (lastRow > 1) {
+    const lastID = targetSheet.getRange(lastRow, 1).getValue();
+    const lastNumber = parseInt(lastID.split("_")[1]);
+    const nextNumber = lastNumber + 1;
+    newID = "K_" + String(nextNumber).padStart(3, "0");
+  }
+
+  // Append structured row into Kitchens tab
+  targetSheet.appendRow([
+    newID,
+    kitchenName,
+    kitchenLocation,
+    timestamp
+  ]);
+
+  // Log the event
+  logActivity(
+    "onCreateKitchenSubmit",
+    `Created kitchen ${newID} (${kitchenName}, ${kitchenLocation})`
+  );
+}
