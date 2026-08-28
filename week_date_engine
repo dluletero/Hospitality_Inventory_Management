@@ -1,0 +1,31 @@
+function getWeekInfo(date) {
+  const monthNames = ["January","February","March","April","May","June","July","August",
+                      "September","October","November","December"];
+
+  const month = date.getMonth(); 
+  const year = date.getFullYear();
+  const monthName = monthNames[month];
+  const day = date.getDate();
+
+  let weekNumber, startDay, endDay;
+
+  if (day >= 1 && day <= 7) {
+    weekNumber = 1; startDay = 1; endDay = 7;
+  } else if (day >= 8 && day <= 14) {
+    weekNumber = 2; startDay = 8; endDay = 14;
+  } else if (day >= 15 && day <= 21) {
+    weekNumber = 3; startDay = 15; endDay = 21;
+  } else if (day >= 22 && day <= 28) {
+    weekNumber = 4; startDay = 22; endDay = 28;
+  } else {
+    weekNumber = 5; startDay = 29; endDay = 31;
+  }
+
+  return {
+    weekNumber,
+    startDate: new Date(year, month, startDay),
+    endDate: new Date(year, month, endDay),
+    monthName,
+    year
+  };
+}
