@@ -1,0 +1,98 @@
+function monthly_pivot() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const monthlySheet = ss.getSheetByName("Monthly_Consumption_Pivot");
+
+  const today = new Date();
+  const month = today.getMonth(); // 0–11
+  const year = today.getFullYear();
+
+  const monthNames = ["January","February","March","April","May","June","July","August",
+                      "September","October","November","December"];
+
+  const monthName = monthNames[month];
+
+  // -------------------------------
+  // 1. BUILD HEADER ROW
+  // -------------------------------
+  const header = ["Item_Name", "Week1", "Week2", "Week3", "Week4", "Week5", "Total_Monthly"];
+
+  monthlySheet.clear();
+  monthlySheet.appendRow(header);
+
+  // -------------------------------
+  // 2. GET ITEMS FROM RAW SHEET
+  // -------------------------------
+  const rawSheet = ss.getSheetByName("Kitchen_Consumption_Raw");
+  const rawHeaders = rawSheet.getRange(1, 1, 1, rawSheet.getLastColumn()).getValues()[0];
+  const itemHeaders = rawHeaders.slice(4); // items start at column 5
+
+  itemHeaders.forEach(item => {
+    monthlySheet.appendRow([item]);
+  });
+
+  // -------------------------------
+  // 3. READ WEEKLY FILES FROM DRIVE
+  // -------------------------------
+  const weeklyTotals = [0, 0, 0, 0, 0]; // Week1–Week5
+
+  for (let w = 1; w <= 5; w++) {
+    const fileName = `${monthName}_Week${w}_${year}.xlsx`;
+    const files = DriveApp.getFilesByName(fileName);
+
+    if (files.hasNext()) {
+      const file = files.next();
+      const content = file.getBlob().getDataAsString();
+      const rows = content.split("\n").map(r => r.split(","));
+
+      // Find Total_Weekly column index
+      const headerRow = rows[0];
+      const totalIndex = headerRow.indexOf("Total_Weekly");
+
+      // Sum all item totals for this week
+      let weekTotal = 0;
+      for (let i = 1; i < rows.length; i++) {
+        const val = Number(rows[i][totalIndex]) || 0;
+        weekTotal += val;
+      }
+
+      weeklyTotals[w - 1] = weekTotal;
+    }
+  }
+
+  // -------------------------------
+  // 4. POPULATE MONTHLY SHEET
+  // -------------------------------
+  itemHeaders.forEach((itemName, rowIndex) => {
+    const row = monthlySheet.getRange(rowIndex + 2, 1, 1, header.length).getValues()[0];
+
+    // Fill Week1–Week5
+    for (let w = 0; w < 5; w++) {
+      row[w + 1] = weeklyTotals[w];
+    }
+
+    // Total Monthly
+    row[6] = weeklyTotals.reduce((a, b) => a + b, 0);
+
+    monthlySheet.getRange(rowIndex + 2, 1, 1, row.length).setValues([row]);
+  });
+
+  // -------------------------------
+  // 5. EXPORT MONTHLY FILE
+  // -------------------------------
+  const fileNameMonthly = `${monthName}_${year}_Monthly.xlsx`;
+
+  const exportData = monthlySheet.getRange(1, 1, monthlySheet.getLastRow(), monthlySheet.getLastColumn()).getValues();
+  const csvContent = exportData.map(r => r.join(",")).join("\n");
+
+  DriveApp.createFile(fileNameMonthly, csvContent);
+
+  // -------------------------------
+  // 6. RESET FOR NEXT MONTH
+  // -------------------------------
+  monthlySheet.clear();
+  monthlySheet.appendRow(header);
+
+  itemHeaders.forEach(item => {
+    monthlySheet.appendRow([item]);
+  });
+}
