@@ -1,0 +1,125 @@
+function onManagersConsumptionSubmit(e) {
+  const sheet = e.range.getSheet();
+  if (sheet.getName() !== "Managers_Consumption_Responses") return;
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const responseSheet = ss.getSheetByName("Managers_Consumption_Responses");
+
+  const timestamp = new Date();
+  const managerEmail = e.values[1];
+
+  const rowIndex = e.range.getRow();
+
+  // Fill timestamp + manager email
+  responseSheet.getRange(rowIndex, 1).setValue(timestamp);
+  responseSheet.getRange(rowIndex, 2).setValue(managerEmail);
+
+  // Extract item responses (items start from column 3)
+  const itemResponses = e.values.slice(2);
+  const headers = responseSheet.getRange(1, 1, 1, responseSheet.getLastColumn()).getValues()[0];
+
+  itemResponses.forEach((value, i) => {
+    const itemName = headers[i + 2];
+    if (!itemName) return;
+
+    const colIndex = headers.indexOf(itemName);
+    responseSheet.getRange(rowIndex, colIndex + 1).setValue(value);
+  });
+
+  logActivity(
+    "onManagersConsumptionSubmit",
+    `Completed writing row ${rowIndex} for ${managerEmail}`
+  );
+
+  writeToKitchenConsumptionRaw(rowIndex);
+}
+
+function writeToKitchenConsumptionRaw(rowIndex) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const responseSheet = ss.getSheetByName("Managers_Consumption_Responses");
+  const rawSheet = ss.getSheetByName("Kitchen_Consumption_Raw");
+  const managersSheet = ss.getSheetByName("Kitchen_Managers");
+
+  // Read entire row from Managers_Consumption_Responses
+  const rowValues = responseSheet.getRange(rowIndex, 1, 1, responseSheet.getLastColumn()).getValues()[0];
+
+  const timestamp = rowValues[0];
+  const managerEmail = rowValues[1];
+
+  // Lookup manager details
+  const managersData = managersSheet.getRange(2, 1, managersSheet.getLastRow() - 1, 6).getValues();
+  const managerRow = managersData.find(r => r[2] === managerEmail);
+
+  const managerName = managerRow ? managerRow[1] : "Unknown";      // Manager_Name (col B)
+  const assignedKitchen = managerRow ? managerRow[4] : "Unknown";  // Kitchen_Name (col E)
+
+  // Headers from Managers_Consumption_Responses
+  const responseHeaders = responseSheet.getRange(1, 1, 1, responseSheet.getLastColumn()).getValues()[0];
+  const itemHeaders = responseHeaders.slice(2); // items start from col 3
+
+  // Read existing headers from Kitchen_Consumption_Raw
+  let rawLastCol = rawSheet.getLastColumn();
+  let rawHeaders = [];
+
+  if (rawLastCol === 0) {
+    // Sheet is empty: create full header row
+    rawSheet.appendRow([
+      "Timestamp",
+      "Manager_Email",
+      "Manager_Name",
+      "Assigned_Kitchen",
+      ...itemHeaders
+    ]);
+    rawHeaders = rawSheet.getRange(1, 1, 1, rawSheet.getLastColumn()).getValues()[0];
+  } else {
+    rawHeaders = rawSheet.getRange(1, 1, 1, rawLastCol).getValues()[0];
+
+    // Ensure first four fixed headers are correct
+    const fixedHeaders = ["Timestamp", "Manager_Email", "Manager_Name", "Assigned_Kitchen"];
+    fixedHeaders.forEach((h, i) => {
+      if (rawHeaders[i] !== h) {
+        rawSheet.getRange(1, i + 1).setValue(h);
+        rawHeaders[i] = h;
+      }
+    });
+
+    // STRICT ORDER RULE:
+    // Item columns must appear in EXACT order of responseHeaders.slice(2)
+    itemHeaders.forEach(itemName => {
+      if (!itemName) return;
+
+      const existingIndex = rawHeaders.indexOf(itemName);
+
+      if (existingIndex === -1) {
+        // Item does not exist → append at end
+        const newCol = rawSheet.getLastColumn() + 1;
+        rawSheet.getRange(1, newCol).setValue(itemName);
+        rawHeaders.push(itemName);
+      }
+    });
+  }
+
+  // Build new row aligned with strict header order
+  const newRow = new Array(rawHeaders.length).fill("");
+
+  newRow[0] = timestamp;
+  newRow[1] = managerEmail;
+  newRow[2] = managerName;
+  newRow[3] = assignedKitchen;
+
+  // Map item values by header name
+  itemHeaders.forEach((itemName, i) => {
+    const rawColIndex = rawHeaders.indexOf(itemName);
+    if (rawColIndex !== -1) {
+      newRow[rawColIndex] = rowValues[i + 2]; // item value from response row
+    }
+  });
+
+  // Append row
+  rawSheet.appendRow(newRow);
+
+  logActivity(
+    "writeToKitchenConsumptionRaw",
+    `Copied row ${rowIndex} for ${managerEmail} into Kitchen_Consumption_Raw`
+  );
+}
