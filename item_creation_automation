@@ -1,0 +1,76 @@
+function onCreateItemSubmit(e) {
+  if (!e || !e.range) {
+    Logger.log("This function must be triggered by a form submission.");
+    return;
+  }
+
+  const sheet = e.range.getSheet();
+  if (sheet.getName() !== "Item_Creation_Response") return;
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const inventorySheet = ss.getSheetByName("Inventory_Master");
+
+  const timestamp = e.values[0];
+  const itemName = e.values[1];
+  const unitOfMeasure = e.values[2];
+  const quantityPerUnit = Number(e.values[3]);
+  const openingStock = Number(e.values[4]);
+  const threshold = Number(e.values[5]);
+
+  const lastRow = inventorySheet.getLastRow();
+  let newItemID = "ITM_001";
+
+  if (lastRow > 1) {
+    const lastID = inventorySheet.getRange(lastRow, 1).getValue();
+    const lastNumber = parseInt(lastID.split("_")[1]);
+    newItemID = "ITM_" + String(lastNumber + 1).padStart(3, "0");
+  }
+
+  const totalMonthlyUsage = "";
+  const closingStock = openingStock;
+
+  // STATUS LOGIC
+  let status = "";
+  if (closingStock <= threshold) {
+    status = "OUT";
+  } else if (closingStock <= threshold * 1.5) {
+    status = "LOW";
+  } else {
+    status = "OK";
+  }
+
+  const createdAt = timestamp;
+
+  // Append row
+  inventorySheet.appendRow([
+    newItemID,
+    itemName,
+    unitOfMeasure,
+    quantityPerUnit,
+    openingStock,
+    threshold,
+    totalMonthlyUsage,
+    closingStock,
+    status,
+    createdAt
+  ]);
+
+  // Apply color formatting to the Status cell
+  const newRow = inventorySheet.getLastRow();
+  const statusCell = inventorySheet.getRange(newRow, 9); // Column I
+
+  if (status === "OUT") {
+    statusCell.setBackground("#ea4335");
+  } else if (status === "LOW") {
+    statusCell.setBackground("#fbbc04");
+  } else if (status === "OK") {
+    statusCell.setBackground("#34a853");
+  }
+
+  logActivity(
+    "onCreateItemSubmit",
+    `Created item ${newItemID} (${itemName}, UOM: ${unitOfMeasure}, Opening: ${openingStock}, Threshold: ${threshold})`
+  );
+
+  Logger.log(`Item ${newItemID} created with status ${status}.`);
+}
