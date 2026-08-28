@@ -1,0 +1,129 @@
+function getLastDayOfMonth(date) {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+}
+
+
+function weekly_pivot() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const rawSheet = ss.getSheetByName("Kitchen_Consumption_Raw");
+  const weeklySheet = ss.getSheetByName("Weekly_Consumption_Pivot");
+
+  const today = new Date();
+  const weekInfo = getWeekInfo(today);
+
+  const startDate = weekInfo.startDate;
+  const endDate = weekInfo.endDate;
+  const lastDayOfMonth = getLastDayOfMonth(startDate);
+
+  // -------------------------------
+  // 1. BUILD HEADER ROW
+  // -------------------------------
+  const header = ["Item_Name"];
+  let current = new Date(startDate);
+
+  while (current <= endDate) {
+    header.push(Utilities.formatDate(current, "GMT+3", "MM-dd-yyyy"));
+    current.setDate(current.getDate() + 1);
+  }
+
+  header.push("Total_Weekly");
+
+  weeklySheet.clear();
+  weeklySheet.appendRow(header);
+
+  // -------------------------------
+  // 2. GET ITEMS FROM RAW SHEET
+  // -------------------------------
+  const rawHeaders = rawSheet.getRange(1, 1, 1, rawSheet.getLastColumn()).getValues()[0];
+  const itemHeaders = rawHeaders.slice(4); // items start at column 5
+
+  itemHeaders.forEach(item => {
+    weeklySheet.appendRow([item]);
+  });
+
+  // -------------------------------
+  // 3. READ RAW DATA
+  // -------------------------------
+  const rawData = rawSheet.getRange(2, 1, rawSheet.getLastRow() - 1, rawSheet.getLastColumn()).getValues();
+
+  // -------------------------------
+  // 4. POPULATE DAILY TOTALS
+  // -------------------------------
+  itemHeaders.forEach((itemName, rowIndex) => {
+    let row = weeklySheet.getRange(rowIndex + 2, 1, 1, header.length).getValues()[0];
+
+    let current = new Date(startDate);
+    let colOffset = 1;
+
+    while (current <= endDate) {
+      const dayNum = current.getDate();
+
+      // If the month ends before this date → leave blank
+      if (dayNum > lastDayOfMonth) {
+        row[colOffset] = "";
+      } else {
+        const dateString = Utilities.formatDate(current, "GMT+3", "MM-dd-yyyy");
+
+        const dailyTotal = rawData
+          .filter(r => {
+            const ts = new Date(r[0]);
+            const rawDate = Utilities.formatDate(ts, "GMT+3", "MM-dd-yyyy");
+            return rawDate === dateString;
+          })
+          .reduce((sum, r) => {
+            const itemIndex = rawHeaders.indexOf(itemName);
+            return sum + (Number(r[itemIndex]) || 0);
+          }, 0);
+
+        row[colOffset] = dailyTotal;
+      }
+
+      colOffset++;
+      current.setDate(current.getDate() + 1);
+    }
+
+    // Weekly total (ignores blanks)
+    row[row.length - 1] = row.slice(1, -1).reduce((a, b) => a + (Number(b) || 0), 0);
+
+    weeklySheet.getRange(rowIndex + 2, 1, 1, row.length).setValues([row]);
+  });
+
+  // -------------------------------
+  // 5. EXPORT WEEKLY FILE
+  // -------------------------------
+  const fileNameB = `${weekInfo.monthName}_Week${weekInfo.weekNumber}_${weekInfo.year}`;
+
+  const exportData = weeklySheet.getRange(1, 1, weeklySheet.getLastRow(), weeklySheet.getLastColumn()).getValues();
+  const csvContent = exportData.map(r => r.join(",")).join("\n");
+
+  DriveApp.createFile(fileNameB + ".xlsx", csvContent);
+
+  // -------------------------------
+  // 6. RESET FOR NEXT WEEK
+  // -------------------------------
+  weeklySheet.clear();
+
+  // Generate next week's header
+  const nextWeekStart = new Date(endDate);
+  nextWeekStart.setDate(nextWeekStart.getDate() + 1);
+
+  const nextWeekInfo = getWeekInfo(nextWeekStart);
+  const nextLastDayOfMonth = getLastDayOfMonth(nextWeekStart);
+
+  const nextHeader = ["Item_Name"];
+  let nextCurrent = new Date(nextWeekInfo.startDate);
+
+  while (nextCurrent <= nextWeekInfo.endDate) {
+    nextHeader.push(Utilities.formatDate(nextCurrent, "GMT+3", "MM-dd-yyyy"));
+    nextCurrent.setDate(nextCurrent.getDate() + 1);
+  }
+
+  nextHeader.push("Total_Weekly");
+
+  weeklySheet.appendRow(nextHeader);
+
+  // Repopulate items
+  itemHeaders.forEach(item => {
+    weeklySheet.appendRow([item]);
+  });
+}
