@@ -1,0 +1,19 @@
+function validateManagerKitchen(e) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const managersSheet = ss.getSheetByName("Kitchen_Managers");
+
+  const email = e.values[1]; // Manager_Email
+  const assignedKitchen = e.values[3]; // Assigned_Kitchen
+
+  const data = managersSheet.getRange(2, 1, managersSheet.getLastRow() - 1, 4).getValues();
+
+  const match = data.find(row => row[2] === email);
+
+  if (!match) {
+    throw new Error("Manager not found in Kitchen_Managers.");
+  }
+
+  if (match[3] !== assignedKitchen) {
+    throw new Error("Manager is not assigned to this kitchen.");
+  }
+}
