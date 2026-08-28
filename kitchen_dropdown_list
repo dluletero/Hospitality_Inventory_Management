@@ -1,0 +1,25 @@
+function refreshKitchenDropdown() {
+  const form = FormApp.openById("1IFLugaVe54Q5gu4G5t4GQge4y6Cmpi9FO8KAqRbBdwk");  // Replace with your Kitchen Manager Form ID
+  const sheet = SpreadsheetApp.getActive().getSheetByName("Kitchen_List_Dropdown");
+
+  // Read from A2 downward (skip header)
+  const lastRow = sheet.getLastRow();
+  const values = sheet.getRange(2, 1, lastRow - 1, 1).getValues().flat();
+
+  // Find the Kitchen Assigned dropdown item
+  const items = form.getItems(FormApp.ItemType.LIST);
+  let dropdownItem = null;
+
+  for (let i = 0; i < items.length; i++) {
+    if (items[i].getTitle() === "Assigned Kitchen") {
+      dropdownItem = items[i].asListItem();
+      break;
+    }
+  }
+
+  if (!dropdownItem) {
+    throw new Error("Dropdown question 'Kitchen Assigned' not found in form.");
+  }
+
+  dropdownItem.setChoiceValues(values);
+}
