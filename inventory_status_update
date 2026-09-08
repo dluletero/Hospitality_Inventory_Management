@@ -1,0 +1,43 @@
+function updateInventoryStatus() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("Inventory_Master");
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return; // No items
+
+  const data = sheet.getRange(2, 1, lastRow - 1, 9).getValues(); // Rows 2..n
+
+  for (let i = 0; i < data.length; i++) {
+    const row = data[i];
+
+    const openingStock = row[4];   // Column E
+    const threshold = row[5];      // Column F
+    const closingStock = row[7];   // Column H
+    let status = row[8];           // Column I
+
+    // Recalculate status
+    let newStatus = "";
+    if (closingStock <= threshold) {
+      newStatus = "OUT";
+    } else if (closingStock <= threshold * 1.5) {
+      newStatus = "LOW";
+    } else {
+      newStatus = "OK";
+    }
+
+    // Only update if changed
+    if (newStatus !== status) {
+      sheet.getRange(i + 2, 9).setValue(newStatus);
+
+      // Apply color formatting
+      const statusCell = sheet.getRange(i + 2, 9);
+      if (newStatus === "OUT") {
+        statusCell.setBackground("#ea4335");
+      } else if (newStatus === "LOW") {
+        statusCell.setBackground("#fbbc04");
+      } else {
+        statusCell.setBackground("#34a853");
+      }
+    }
+  }
+}
