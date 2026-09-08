@@ -1,0 +1,66 @@
+function buildKitchenConsumptionPivot() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const rawSheet = ss.getSheetByName("Kitchen_Consumption_Raw");
+  const pivotSheet = ss.getSheetByName("Kitchen_Consumption_Pivot");
+
+  const rawData = rawSheet.getRange(2, 1, rawSheet.getLastRow() - 1, rawSheet.getLastColumn()).getValues();
+  const rawHeaders = rawSheet.getRange(1, 1, 1, rawSheet.getLastColumn()).getValues()[0];
+
+  // Fixed columns
+  const timestampCol = rawHeaders.indexOf("Timestamp");
+  const managerEmailCol = rawHeaders.indexOf("Manager_Email");
+  const managerNameCol = rawHeaders.indexOf("Manager_Name");
+  const kitchenCol = rawHeaders.indexOf("Assigned_Kitchen");
+
+  // Item columns start after fixed columns
+  const itemHeaders = rawHeaders.slice(4);
+
+  // Build pivot header if empty
+  if (pivotSheet.getLastRow() === 0) {
+    pivotSheet.appendRow([
+      "Kitchen_Name",
+      "Item_Name",
+      "Date",
+      "Daily_Usage",
+      "Week_Number",
+      "Weekly_Usage",
+      "Month",
+      "Monthly_Usage"
+    ]);
+  }
+
+  rawData.forEach(row => {
+    const timestamp = row[timestampCol];
+    const kitchenName = row[kitchenCol];
+
+    if (!timestamp || !kitchenName) return;
+
+    const date = new Date(timestamp);
+    const weekNumber = getWeekNumber(date);
+    const month = date.getMonth() + 1;
+
+    itemHeaders.forEach((itemName, i) => {
+      const usageValue = row[4 + i];
+      if (usageValue === "" || usageValue === null || usageValue === undefined) return;
+
+      pivotSheet.appendRow([
+        kitchenName,
+        itemName,
+        date,
+        usageValue,
+        weekNumber,
+        usageValue, // weekly usage placeholder
+        month,
+        usageValue  // monthly usage placeholder
+      ]);
+    });
+  });
+
+  logActivity("Kitchen_Consumption_Pivot", "Pivot updated successfully");
+}
+
+function getWeekNumber(date) {
+  const oneJan = new Date(date.getFullYear(), 0, 1);
+  const numberOfDays = Math.floor((date - oneJan) / (24 * 60 * 60 * 1000));
+  return Math.ceil((numberOfDays + oneJan.getDay() + 1) / 7);
+}
