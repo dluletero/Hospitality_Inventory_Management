@@ -1,0 +1,66 @@
+function refreshInventoryUpdateForm() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("Inventory_Master");
+
+  // Get item names from column B (starting at B2)
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+
+  const itemNames = sheet.getRange(2, 2, lastRow - 1, 1)
+                         .getValues()
+                         .flat()
+                         .filter(name => name && name.toString().trim() !== "");
+
+  const form = FormApp.openById("1zFtRK7r7DDkXVPvN-Uo3pbb0KV99b6KlQIlm6Yq0Dhs");
+
+  // Get existing form items
+  let formItems = form.getItems();
+
+  // Validation rule: only integers 0–2000
+  const validation = FormApp.createTextValidation()
+    .requireTextMatchesPattern("^(2000|1?[0-9]{1,3}|[0-9])$")
+    .setHelpText("Only whole numbers from 0 to 2000 are allowed. No decimals, letters, or negative values.")
+    .build();
+
+  // Map existing items by title
+  const formMap = {};
+  formItems.forEach(item => {
+    formMap[item.getTitle()] = item;
+  });
+
+  //Add missing items in correct order
+  itemNames.forEach((name, index) => {
+    if (!formMap[name]) {
+      const newItem = form.addTextItem()
+                          .setTitle(name)
+                          .setRequired(false)
+                          .setValidation(validation);
+
+      form.moveItem(newItem, index);
+    }
+  });
+
+  // Refresh form items after additions
+  formItems = form.getItems();
+
+  //Remove items no longer in inventory
+  formItems.forEach(item => {
+    const title = item.getTitle();
+    if (!itemNames.includes(title)) {
+      form.deleteItem(item);
+    }
+  });
+
+  // Refresh form items after deletions
+  formItems = form.getItems();
+
+  //Reorder items to match inventory order
+  itemNames.forEach((name, index) => {
+    const item = formItems.find(i => i.getTitle() === name);
+    if (item) {
+      form.moveItem(item, index);
+    }
+  });
+
+  Logger.log("Inventory Update Form synced and ordered. Items: " + itemNames.length);
+}
