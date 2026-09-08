@@ -1,0 +1,113 @@
+function refreshDailyConsumptionForm() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("Inventory_Master");
+
+  // Get item names from column B (starting at B2)
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+
+  const itemNames = sheet.getRange(2, 2, lastRow - 1, 1)
+                         .getValues()
+                         .flat()
+                         .filter(name => name && name.toString().trim() !== "");
+
+  const form = FormApp.openById("1KC_U4a-sTI5IvcsUNlj366A4FSRLZi4wUWDU0zTlExE");
+
+  // Get existing form items
+  const formItems = form.getItems();
+  const existingTitles = formItems.map(item => item.getTitle());
+
+  // Validation rule
+  const validation = FormApp.createTextValidation()
+    .requireTextMatchesPattern("^(500|[0-9]{1,2})$")
+    .setHelpText("Only whole numbers from 0 to 500 are allowed.")
+    .build();
+
+  //Add missing items
+  itemNames.forEach(name => {
+    if (!existingTitles.includes(name)) {
+      form.addTextItem()
+          .setTitle(name)
+          .setRequired(false)
+          .setValidation(validation);
+    }
+  });
+
+  //Remove items no longer in inventory
+  formItems.forEach(item => {
+    const title = item.getTitle();
+    if (!itemNames.includes(title)) {
+      form.deleteItem(item);
+    }
+  });
+
+  Logger.log("Form synced. Items: " + itemNames.length);
+}
+
+function refreshDailyConsumptionForm() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("Inventory_Master");
+
+  // Get item names from column B (starting at B2)
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+
+  const itemNames = sheet.getRange(2, 2, lastRow - 1, 1)
+                         .getValues()
+                         .flat()
+                         .filter(name => name && name.toString().trim() !== "");
+
+  const form = FormApp.openById("1KC_U4a-sTI5IvcsUNlj366A4FSRLZi4wUWDU0zTlExE");
+
+  // Get existing form items
+  let formItems = form.getItems();
+
+  // Validation rule
+  const validation = FormApp.createTextValidation()
+    .requireTextMatchesPattern("^(100|[0-9]{1,2})$")
+    .setHelpText("Only whole numbers from 0 to 100 are allowed.")
+    .build();
+
+  // Convert form items to a map for quick lookup
+  const formMap = {};
+  formItems.forEach(item => {
+    formMap[item.getTitle()] = item;
+  });
+
+  //Add missing items (in correct order)
+  itemNames.forEach((name, index) => {
+    if (!formMap[name]) {
+      const newItem = form.addTextItem()
+                          .setTitle(name)
+                          .setRequired(false)
+                          .setValidation(validation);
+
+      // Insert at correct position
+      form.moveItem(newItem, index);
+    }
+  });
+
+  // Refresh form items after additions
+  formItems = form.getItems();
+
+  //Remove items no longer in inventory
+  formItems.forEach(item => {
+    const title = item.getTitle();
+    if (!itemNames.includes(title)) {
+      form.deleteItem(item);
+    }
+  });
+
+  // Refresh form items after deletions
+  formItems = form.getItems();
+
+  //Reorder existing items to match inventory order
+  itemNames.forEach((name, index) => {
+    const item = formItems.find(i => i.getTitle() === name);
+    if (item) {
+      form.moveItem(item, index);
+    }
+  });
+
+  Logger.log("Form synced and ordered. Items: " + itemNames.length);
+}
